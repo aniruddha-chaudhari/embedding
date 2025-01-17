@@ -21,7 +21,7 @@ class VectorDatabase:
         try:
             try:
                 existing_index = self.pc.describe_index(self.index_name)
-                if existing_index.dimension != self.dimension:
+                if (existing_index.dimension != self.dimension):
                     self.pc.delete_index(self.index_name)
             except:
                 pass
@@ -70,11 +70,16 @@ class VectorDatabase:
             return file_content.decode('utf-8')
         
         elif ext == 'pdf':
-            text = ""
-            pdf_reader = PyPDF2.PdfReader(file_content)
-            for page in pdf_reader.pages:
-                text += page.extract_text()
-            return text
+            try:
+                from io import BytesIO
+                pdf_file = BytesIO(file_content)
+                text = ""
+                pdf_reader = PyPDF2.PdfReader(pdf_file)
+                for page in pdf_reader.pages:
+                    text += page.extract_text()
+                return text
+            except Exception as e:
+                raise ValueError(f"Error processing PDF file: {str(e)}")
         
         elif ext == 'docx':
             if Document is None:

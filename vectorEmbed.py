@@ -1,6 +1,6 @@
 import os
 from typing import List, Union
-import pinecone
+from pinecone import Pinecone, ServerlessSpec
 import cohere
 import pandas as pd
 try:
@@ -13,27 +13,27 @@ import PyPDF2
 class VectorDatabase:
     def __init__(self):
         self.co = cohere.ClientV2(api_key=os.getenv("COHERE_API_KEY"))
-        pinecone.init(api_key=os.getenv("PINECONE_API_KEY"))
+        self.pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
         self.index_name = "coffeeshop-index"
         self.model_name = 'embed-english-light-v3.0'
         self.dimension = 384
         
         try:
             try:
-                existing_index = pinecone.describe_index(self.index_name)
+                existing_index = self.pc.describe_index(self.index_name)
                 if existing_index.dimension != self.dimension:
-                    pinecone.delete_index(self.index_name)
+                    self.pc.delete_index(self.index_name)
             except:
                 pass
 
-            pinecone.create_index(
+            self.index = self.pc.create_index(
                 name=self.index_name,
                 dimension=self.dimension,
-                metric="cosine"
+                metric="cosine",
+                spec=ServerlessSpec(cloud="aws", region="us-east-1")
             )
-            self.index = pinecone.Index(self.index_name)
         except Exception:
-            self.index = pinecone.Index(self.index_name)
+            self.index = self.pc.Index(self.index_name)
 
     def read_file(self, file_path: str) -> str:
         ext = file_path.split('.')[-1].lower()

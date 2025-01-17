@@ -1,12 +1,10 @@
 import streamlit as st
 import requests
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
 
 # Get the API URL from environment variable or use default
-API_URL = os.getenv('API_URL', 'https://embedding-eight.vercel.app')
+API_URL = 'https://embedding-eight.vercel.app'
 
 st.set_page_config(
     page_title="Vector Database Interface",

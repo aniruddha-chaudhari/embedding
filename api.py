@@ -19,11 +19,12 @@ db = VectorDatabase()
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     try:
-        temp_path = f"temp_{file.filename}"
-        with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # Read file content directly
+        file_content = await file.read()
         
-        db.add_to_database(temp_path)
+        # Process the content
+        content = db.read_file_content(file_content, file.filename)
+        db.add_content_to_database(content, file.filename)
         
         return {"message": "File processed successfully"}
     except Exception as e:

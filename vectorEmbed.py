@@ -63,6 +63,34 @@ class VectorDatabase:
         else:
             raise ValueError(f"Unsupported file type: {ext}")
 
+    def read_file_content(self, file_content: bytes, filename: str) -> str:
+        ext = filename.split('.')[-1].lower()
+        
+        if ext == 'txt':
+            return file_content.decode('utf-8')
+        
+        elif ext == 'pdf':
+            text = ""
+            pdf_reader = PyPDF2.PdfReader(file_content)
+            for page in pdf_reader.pages:
+                text += page.extract_text()
+            return text
+        
+        elif ext == 'docx':
+            if Document is None:
+                raise ImportError("python-docx is not properly installed")
+            from io import BytesIO
+            doc = Document(BytesIO(file_content))
+            return ' '.join([paragraph.text for paragraph in doc.paragraphs])
+        
+        elif ext == 'csv':
+            from io import StringIO
+            df = pd.read_csv(StringIO(file_content.decode('utf-8')))
+            return df.to_string()
+        
+        else:
+            raise ValueError(f"Unsupported file type: {ext}")
+
     def get_embedding(self, text: Union[str, List[str]]):
         texts = [text] if isinstance(text, str) else text
         response = self.co.embed(
@@ -96,6 +124,21 @@ class VectorDatabase:
         
         self.index.upsert(vectors=vectors)
         self.delete_file(file_path)
+
+    def add_content_to_database(self, content: str, source_id: str, chunk_size: int = 1000):
+        chunks = [content[i:i+chunk_size] for i in range(0, len(content), chunk_size)]
+        embeddings = self.get_embedding(chunks)
+        
+        if not embeddings or not all(isinstance(e, list) and all(isinstance(v, float) for v in e) for e in embeddings):
+            raise ValueError("Invalid embedding format")
+        
+        vectors = [{
+            'id': f"{source_id}_{i}",
+            'values': embedding,
+            'metadata': {'text': chunk, 'source': source_id}
+        } for i, (chunk, embedding) in enumerate(zip(chunks, embeddings))]
+        
+        self.index.upsert(vectors=vectors)
 
     def query_database(self, query: str, top_k: int = 3):
         query_embedding = self.get_embedding(query)[0]

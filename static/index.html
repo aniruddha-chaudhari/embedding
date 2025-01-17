@@ -108,7 +108,12 @@
                     result.results.forEach(match => {
                         const div = document.createElement('div');
                         div.className = 'result';
-                        div.textContent = match.metadata.text;
+                        div.textContent = match.text; // Changed from match.metadata.text to match.text
+                        const sourceSpan = document.createElement('div');
+                        sourceSpan.style.fontSize = '0.8em';
+                        sourceSpan.style.color = '#666';
+                        sourceSpan.textContent = `Source: ${match.source} (Score: ${match.score.toFixed(3)})`;
+                        div.appendChild(sourceSpan);
                         resultsDiv.appendChild(div);
                     });
                 } else {

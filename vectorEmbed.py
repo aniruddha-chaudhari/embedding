@@ -2,13 +2,6 @@ import os
 from typing import List, Union
 from pinecone import Pinecone, ServerlessSpec
 import cohere
-import pandas as pd
-try:
-    from docx import Document
-except ImportError:
-    print("Warning: python-docx not installed correctly. DOCX support will be limited.")
-    Document = None
-import PyPDF2
 
 class VectorDatabase:
     def __init__(self):
@@ -35,67 +28,6 @@ class VectorDatabase:
         except Exception:
             self.index = self.pc.Index(self.index_name)
 
-    def read_file(self, file_path: str) -> str:
-        ext = file_path.split('.')[-1].lower()
-        
-        if ext == 'txt':
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return f.read()
-        
-        elif ext == 'pdf':
-            text = ""
-            with open(file_path, 'rb') as f:
-                pdf_reader = PyPDF2.PdfReader(f)
-                for page in pdf_reader.pages:
-                    text += page.extract_text()
-            return text
-        
-        elif ext == 'docx':
-            if Document is None:
-                raise ImportError("python-docx is not properly installed")
-            doc = Document(file_path)
-            return ' '.join([paragraph.text for paragraph in doc.paragraphs])
-        
-        elif ext == 'csv':
-            df = pd.read_csv(file_path)
-            return df.to_string()
-        
-        else:
-            raise ValueError(f"Unsupported file type: {ext}")
-
-    def read_file_content(self, file_content: bytes, filename: str) -> str:
-        ext = filename.split('.')[-1].lower()
-        
-        if ext == 'txt':
-            return file_content.decode('utf-8')
-        
-        elif ext == 'pdf':
-            try:
-                from io import BytesIO
-                pdf_file = BytesIO(file_content)
-                text = ""
-                pdf_reader = PyPDF2.PdfReader(pdf_file)
-                for page in pdf_reader.pages:
-                    text += page.extract_text()
-                return text
-            except Exception as e:
-                raise ValueError(f"Error processing PDF file: {str(e)}")
-        
-        elif ext == 'docx':
-            if Document is None:
-                raise ImportError("python-docx is not properly installed")
-            from io import BytesIO
-            doc = Document(BytesIO(file_content))
-            return ' '.join([paragraph.text for paragraph in doc.paragraphs])
-        
-        elif ext == 'csv':
-            from io import StringIO
-            df = pd.read_csv(StringIO(file_content.decode('utf-8')))
-            return df.to_string()
-        
-        else:
-            raise ValueError(f"Unsupported file type: {ext}")
-
     def get_embedding(self, text: Union[str, List[str]]):
         texts = [text] if isinstance(text, str) else text
         response = self.co.embed(
@@ -105,30 +37,6 @@ class VectorDatabase:
             embedding_types=['float']
         )
         return [list(e) for e in response.embeddings.float_]
-
-    def delete_file(self, file_path: str):
-        try:
-            os.remove(file_path)
-            print(f"File {file_path} deleted successfully.")
-        except Exception as e:
-            print(f"Error deleting file {file_path}: {e}")
-
-    def add_to_database(self, file_path: str, chunk_size: int = 1000):
-        content = self.read_file(file_path)
-        chunks = [content[i:i+chunk_size] for i in range(0, len(content), chunk_size)]
-        embeddings = self.get_embedding(chunks)
-        
-        if not embeddings or not all(isinstance(e, list) and all(isinstance(v, float) for v in e) for e in embeddings):
-            raise ValueError("Invalid embedding format")
-        
-        vectors = [{
-            'id': f"{file_path}_{i}",
-            'values': embedding,
-            'metadata': {'text': chunk, 'source': file_path}
-        } for i, (chunk, embedding) in enumerate(zip(chunks, embeddings))]
-        
-        self.index.upsert(vectors=vectors)
-        self.delete_file(file_path)
 
     def add_content_to_database(self, content: str, source_id: str, chunk_size: int = 1000):
         chunks = [content[i:i+chunk_size] for i in range(0, len(content), chunk_size)]
@@ -147,9 +55,11 @@ class VectorDatabase:
 
     def query_database(self, query: str, top_k: int = 3):
         query_embedding = self.get_embedding(query)[0]
+        # Use 10000 as a practical upper limit when top_k is None
+        fetch_limit = 10000 if top_k is None else top_k
         results = self.index.query(
             vector=query_embedding,
-            top_k=top_k,
+            top_k=fetch_limit,
             include_values=False,
             include_metadata=True
         )
@@ -159,3 +69,27 @@ class VectorDatabase:
             'source': match.metadata.get('source', 'Unknown'),
             'score': match.score
         } for match in results.matches]
+
+    def query_database_by_prefix(self, prefix: str, top_k: int = 3):
+        # Use 10000 as a practical upper limit when top_k is None
+        fetch_limit = 10000 if top_k is None else top_k
+        response = self.index.query(
+            vector=[0] * self.dimension,
+            top_k=fetch_limit,
+            include_values=False,
+            include_metadata=True
+        )
+        
+        prefix_matches = [
+            match for match in response.matches 
+            if match.metadata['text'].lower().startswith(prefix.lower())
+        ]
+        
+        if top_k is not None:
+            prefix_matches = prefix_matches[:top_k]
+        
+        return [{
+            'text': match.metadata['text'],
+            'source': match.metadata.get('source', 'Unknown'),
+            'score': match.score
+        } for match in prefix_matches]

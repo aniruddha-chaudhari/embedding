@@ -1,8 +1,21 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import shutil
+from pydantic import BaseModel
 from vectorEmbed import VectorDatabase
+from typing import Optional
+
+class TextRequest(BaseModel):
+    text: str
+    source_id: str
+
+class QueryRequest(BaseModel):
+    query: str
+    top_k: Optional[int] = 3
+
+class PrefixRequest(BaseModel):
+    prefix: str
+    top_k: Optional[int] = 3
 
 app = FastAPI()
 
@@ -16,40 +29,47 @@ app.add_middleware(
 
 db = VectorDatabase()
 
-@app.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+@app.post("/add-text")
+async def add_text(request: TextRequest):
     try:
-        # Read file content directly
-        file_content = await file.read()
-        
-        # Process the content
-        content = db.read_file_content(file_content, file.filename)
-        db.add_content_to_database(content, file.filename)
-        
-        return {"message": "File processed successfully"}
+        db.add_content_to_database(request.text, request.source_id)
+        return {"message": "Text processed successfully"}
     except Exception as e:
         return JSONResponse(
             status_code=500,
             content={
                 "error": str(e),
                 "details": {
-                    "file_name": file.filename,
-                    "content_type": file.content_type
+                    "source_id": request.source_id,
                 }
             }
         )
 
 @app.post("/query")
-async def query(query: str = Form(...)):
+async def query(request: QueryRequest):
     try:
-        results = db.query_database(query)
+        results = db.query_database(request.query, request.top_k)
         return {"results": results}
     except Exception as e:
         return JSONResponse(
             status_code=500,
             content={
                 "error": str(e),
-                "query": query
+                "query": request.query
+            }
+        )
+
+@app.post("/query-prefix")
+async def query_prefix(request: PrefixRequest):
+    try:
+        results = db.query_database_by_prefix(request.prefix, request.top_k)
+        return {"results": results}
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": str(e),
+                "prefix": request.prefix
             }
         )
 

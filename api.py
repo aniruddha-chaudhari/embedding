@@ -11,11 +11,7 @@ class TextRequest(BaseModel):
 
 class QueryRequest(BaseModel):
     query: str
-    top_k: Optional[int] = 3
-
-class PrefixRequest(BaseModel):
-    prefix: str
-    top_k: Optional[int] = 3
+    source: Optional[str] = None
 
 app = FastAPI()
 
@@ -48,28 +44,15 @@ async def add_text(request: TextRequest):
 @app.post("/query")
 async def query(request: QueryRequest):
     try:
-        results = db.query_database(request.query, request.top_k)
+        results = db.query_database(request.query, request.source)
         return {"results": results}
     except Exception as e:
         return JSONResponse(
             status_code=500,
             content={
                 "error": str(e),
-                "query": request.query
-            }
-        )
-
-@app.post("/query-prefix")
-async def query_prefix(request: PrefixRequest):
-    try:
-        results = db.query_database_by_prefix(request.prefix, request.top_k)
-        return {"results": results}
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": str(e),
-                "prefix": request.prefix
+                "query": request.query,
+                "source": request.source
             }
         )
 

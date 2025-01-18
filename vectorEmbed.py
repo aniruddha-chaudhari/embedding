@@ -56,11 +56,11 @@ class VectorDatabase:
             namespace=source_id  # Using source_id as namespace
         )
 
-    def query_database(self, query: str, source: str = None):
+    def query_database(self, query: str, source):
         query_embedding = self.get_embedding(query)[0]
         
         results = self.index.query(
-            namespace="helo",
+            namespace=source,
             vector=query_embedding,
             top_k=10000,
             include_values=False,

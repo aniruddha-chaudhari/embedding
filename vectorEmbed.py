@@ -39,8 +39,12 @@ class VectorDatabase:
         return [list(e) for e in response.embeddings.float_]
 
     def add_content_to_database(self, content: str, source_id: str, chunk_size: int = 1000):
+        print(f"\n=== Starting process for source_id: {source_id} ===")
         chunks = [content[i:i+chunk_size] for i in range(0, len(content), chunk_size)]
+        print(f"Created {len(chunks)} chunks from content")
+        
         embeddings = self.get_embedding(chunks)
+        print("Generated embeddings successfully")
         
         if not embeddings or not all(isinstance(e, list) and all(isinstance(v, float) for v in e) for e in embeddings):
             raise ValueError("Invalid embedding format")
@@ -53,17 +57,25 @@ class VectorDatabase:
         
         try:
             # Try to delete existing namespace
+            print(f"\nAttempting to delete existing namespace '{source_id}'...")
             self.index.delete(delete_all=True, namespace=source_id)
-            print(f"Deleted existing namespace: {source_id}")
+            print(f"✓ Successfully deleted existing namespace: {source_id}")
         except Exception as e:
-            print(f"Namespace deletion failed or doesn't exist: {str(e)}")
+            print(f"! Namespace operation result: {str(e)}")
         
-        # Add new vectors regardless of whether deletion succeeded
-        self.index.upsert(
-            vectors=vectors,
-            namespace=source_id
-        )
-        print(f"Added {len(vectors)} vectors to namespace: {source_id}")
+        # Add new vectors
+        try:
+            print(f"\nUploading {len(vectors)} vectors to namespace '{source_id}'...")
+            self.index.upsert(
+                vectors=vectors,
+                namespace=source_id
+            )
+            print(f"✓ Successfully added {len(vectors)} vectors to namespace: {source_id}")
+        except Exception as e:
+            print(f"! Failed to upload vectors: {str(e)}")
+            raise e
+        
+        print("\n=== Process completed successfully ===\n")
 
     def query_database(self, query: str, source):
         query_embedding = self.get_embedding(query)[0]

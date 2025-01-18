@@ -60,6 +60,7 @@ class VectorDatabase:
         query_embedding = self.get_embedding(query)[0]
         
         results = self.index.query(
+            namespace="helo",
             vector=query_embedding,
             top_k=10000,
             include_values=False,

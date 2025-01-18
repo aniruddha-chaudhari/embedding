@@ -51,10 +51,19 @@ class VectorDatabase:
             'metadata': {'text': chunk, 'source': source_id}
         } for i, (chunk, embedding) in enumerate(zip(chunks, embeddings))]
         
+        try:
+            # Try to delete existing namespace
+            self.index.delete(delete_all=True, namespace=source_id)
+            print(f"Deleted existing namespace: {source_id}")
+        except Exception as e:
+            print(f"Namespace deletion failed or doesn't exist: {str(e)}")
+        
+        # Add new vectors regardless of whether deletion succeeded
         self.index.upsert(
             vectors=vectors,
-            namespace=source_id  # Using source_id as namespace
+            namespace=source_id
         )
+        print(f"Added {len(vectors)} vectors to namespace: {source_id}")
 
     def query_database(self, query: str, source):
         query_embedding = self.get_embedding(query)[0]

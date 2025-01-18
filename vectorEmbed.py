@@ -65,7 +65,6 @@ class VectorDatabase:
             top_k=10000,
             include_values=False,
             include_metadata=True,
-            namespace=source if source else None  # Using source as namespace for querying
         )
         
         return [{
